@@ -1,0 +1,35 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>agent</name>
+  <version>2.0.0</version>
+  <description>Agent UAV System - 基于深度学习和LLM的智能无人机控制系统</description>
+
+  <maintainer email="your_email@example.com">Your Name</maintainer>
+  <license>MIT</license>
+
+  <buildtool_depend>catkin</buildtool_depend>
+  
+  <!-- ROS依赖 -->
+  <depend>rospy</depend>
+  <depend>roscpp</depend>
+  <depend>std_msgs</depend>
+  <depend>geometry_msgs</depend>
+  <depend>nav_msgs</depend>
+  <depend>sensor_msgs</depend>
+  <depend>cv_bridge</depend>
+  <depend>tf</depend>
+  
+  <!-- MAVROS依赖 -->
+  <depend>mavros</depend>
+  <depend>mavros_msgs</depend>
+  
+  <!-- 其他ROS包依赖 -->
+  <depend>uav_simulator</depend>
+  
+  <!-- Python依赖通过requirements.txt管理 -->
+  <exec_depend>python3-numpy</exec_depend>
+  <exec_depend>python3-opencv</exec_depend>
+  
+  <export>
+  </export>
+</package>

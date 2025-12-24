@@ -1,0 +1,66 @@
+<!-- 飞行系统启动文件 (使用 CERLAB autonomous_flight + Non-PX4 仿真器) -->
+<!-- 
+    架构:
+    agent_cli.py (终端) ──▶ agent.py (LLM) ──▶ tools.py ──Topic──▶ navigation_node ──▶ tracking_controller ──▶ 仿真器
+    
+    话题 (Non-PX4 仿真器):
+    - CERLAB/quadcopter/odom: 里程计
+    - CERLAB/quadcopter/cmd_acc: 加速度控制指令
+    - CERLAB/quadcopter/setpoint_pose: 位置控制指令
+    
+    使用方法:
+    1. roslaunch uav_simulator start.launch
+    2. roslaunch agent flight.launch
+    3. 新终端: rosrun agent agent_cli.py (终端控制界面)
+    
+    注意: navigation_node 启动时会自动起飞！
+-->
+<launch>
+    <!-- ==================== 参数 ==================== -->
+    <arg name="odom_topic" default="/CERLAB/quadcopter/odom"/>
+    <arg name="takeoff_height" default="1.5"/>
+    <arg name="desired_velocity" default="2.0"/>
+    <arg name="desired_acceleration" default="3.0"/>
+    <arg name="use_global_planner" default="false"/>
+    <arg name="use_yaw_control" default="false"/>
+    
+    <!-- RViz -->
+    <arg name="rviz" default="true"/>
+    <arg name="rviz_config" default="$(find agent)/cfg/flight.rviz"/>
+
+    <!-- ==================== Tracking Controller (与 CERLAB navigation.launch 一致) ==================== -->
+    <remap from="/mavros/local_position/odom" to="$(arg odom_topic)"/>
+    <remap from="/mavros/setpoint_raw/local" to="/CERLAB/quadcopter/cmd_acc"/>
+    <rosparam file="$(find tracking_controller)/cfg/controller_param.yaml" ns="controller"/>
+    <node pkg="tracking_controller" type="tracking_controller_node" name="tracking_controller_node" output="screen"/>
+
+    <!-- ==================== Navigation Node ==================== -->
+    <!-- Flight Base 参数 -->
+    <param name="autonomous_flight/takeoff_height" value="$(arg takeoff_height)"/>
+    <param name="autonomous_flight/use_global_planner" value="$(arg use_global_planner)"/>
+    <param name="autonomous_flight/no_yaw_turning" value="false"/>
+    <param name="autonomous_flight/use_yaw_control" value="$(arg use_yaw_control)"/>
+    <param name="autonomous_flight/desired_velocity" value="$(arg desired_velocity)"/>
+    <param name="autonomous_flight/desired_acceleration" value="$(arg desired_acceleration)"/>
+    <param name="autonomous_flight/desired_angular_velocity" value="0.5"/>
+    <param name="autonomous_flight/trajectory_info_save_path" value="No"/>
+    <param name="autonomous_flight/use_time_optimizer" value="false"/>
+    
+    <!-- Planner 参数 (使用自定义配置，增加 max_path_length) -->
+    <rosparam file="$(find agent)/cfg/planner.yaml"/>
+    
+    <!-- Mapping 参数 -->
+    <rosparam file="$(find agent)/cfg/mapping.yaml" ns="/occupancy_map"/>
+    
+    <!-- Navigation Node -->
+    <node pkg="autonomous_flight" type="navigation_node" name="navigation_node" output="screen"/>
+
+    <!-- ==================== Agent (LLM 后台服务) ==================== -->
+    <node pkg="agent" type="agent.py" name="agent_node" output="screen">
+        <param name="odom_topic" value="$(arg odom_topic)"/>
+    </node>
+
+    <!-- ==================== RViz 可视化 ==================== -->
+    <node if="$(arg rviz)" pkg="rviz" type="rviz" name="rviz" 
+          args="-d $(arg rviz_config)" output="screen"/>
+</launch>

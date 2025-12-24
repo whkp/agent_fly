@@ -1,0 +1,77 @@
+{
+  "tools": [
+    {
+      "name": "takeoff",
+      "description": "控制无人机起飞到指定高度并悬停。输入应该是目标高度（米），例如 {'height': 2.0}。如果不提供参数，默认起飞到配置高度（1.5米）。注意：如果使用 navigation_node，它会自动起飞，无需手动调用此工具。",
+      "function": "takeoff",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "height": {
+            "type": "number",
+            "description": "目标高度（米），默认1.5，范围0.5-20"
+          }
+        }
+      }
+    },
+    {
+      "name": "land",
+      "description": "控制无人机降落到地面。该工具没有输入参数。这是任务结束时应该调用的工具。",
+      "function": "land",
+      "parameters": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "name": "set_goal",
+      "description": "设置导航目标点。navigation_node 会自动规划避障轨迹飞向目标。输入应该是包含 x, y, z 坐标的字典，例如 {'x': 10.0, 'y': 5.0, 'z': 1.5}。必须先起飞到 HOVER 状态才能使用此工具。",
+      "function": "set_goal",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "x": {"type": "number", "description": "目标X坐标（米）"},
+          "y": {"type": "number", "description": "目标Y坐标（米）"},
+          "z": {"type": "number", "description": "目标Z坐标/高度（米），默认使用起飞高度"}
+        },
+        "required": ["x", "y"]
+      }
+    },
+    {
+      "name": "get_current_position",
+      "description": "获取无人机当前的位置和姿态（x, y, z, yaw）。该工具没有输入参数。",
+      "function": "get_current_position",
+      "parameters": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "name": "get_flight_status",
+      "description": "获取当前飞行状态（IDLE/TAKEOFF/HOVER/NAVIGATE/LAND）和位置信息。该工具没有输入参数。",
+      "function": "get_flight_status",
+      "parameters": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "name": "describe_scene",
+      "description": "使用机载摄像头描述当前位置看到的景象。该工具没有输入参数。",
+      "function": "describe_scene",
+      "parameters": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "name": "get_detected_objects",
+      "description": "获取视觉系统检测到的物体及其位置信息。返回物体名称、世界坐标和距离。该工具没有输入参数。",
+      "function": "get_detected_objects",
+      "parameters": {
+        "type": "object",
+        "properties": {}
+      }
+    }
+  ]
+}
