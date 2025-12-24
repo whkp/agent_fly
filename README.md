@@ -22,6 +22,25 @@
 - CERLAB-UAV-Autonomy (autonomous_flight, tracking_controller, uav_simulator, map_manager)
 - Python 依赖: `conda env create -f agent/cfg/environment.yaml`
 
+### 安装
+```bash
+# step1: install dependencies
+sudo apt install ros-${ROS_DISTRO}-octomap* && sudo apt install ros-${ROS_DISTRO}-mavros* && sudo apt install ros-${ROS_DISTRO}-vision-msgs
+# step2: clone repo
+mkdir -p ~/Documents/agent_ws
+cd ~/Documents/agent_ws
+git clone --recursive https://github.com/whkp/agent_fly.git
+# optional: switch to simulation branch for autonomous_flight
+# the default branch is for real flight and PX4 simulation
+cd path/to/autonomous_flight
+git checkout simulation
+
+# step3: build workspace
+cd ~/Documents/agent_ws
+catkin_make
+
+```
+
 ## 使用方法
 
 ### 1. 启动仿真环境
