@@ -1,0 +1,100 @@
+<!-- 无人机 - 运行LLM和导航（YOLO在地面站） -->
+<!-- 
+    用途: 在无人机上运行Agent（LLM API调用）和导航，YOLO检测在地面站
+    
+    架构:
+    无人机: agent.py (LLM API) + navigation_node (RL导航)
+    地面站: vision.py (YOLO检测)
+    
+    资源占用:
+    - LLM API: 200MB内存, 5% CPU, 0% GPU
+    - 导航: 2GB显存
+    - 总计: 2GB显存, 700MB内存
+    
+    使用方法:
+    1. 在地面站启动YOLO:
+       roslaunch agent vision_station.launch
+    
+    2. 在无人机配置ROS网络:
+       export ROS_MASTER_URI=http://localhost:11311
+       export ROS_IP=DRONE_IP
+    
+    3. 在无人机启动:
+       roslaunch agent drone_with_llm.launch \
+         real_drone_takeoff_script:=/path/to/takeoff.sh \
+         real_drone_land_script:=/path/to/land.sh \
+         odom_topic:=/your/robot/odom
+    
+    4. 在任意终端启动GUI:
+       rosrun agent agent_gui.py
+    
+    优势:
+    - 无人机算力需求低（只需2GB显存运行导航）
+    - LLM决策在本地（低延迟）
+    - 网络断开仍可决策（无YOLO但可基于里程计）
+    - 成本低（无需高性能机载计算机）
+-->
+<launch>
+    <!-- ==================== 参数 ==================== -->
+    <!-- 真机配置 -->
+    <arg name="use_real_drone" default="true" doc="使用真机模式"/>
+    <arg name="real_drone_takeoff_script" default="" doc="真机起飞脚本路径"/>
+    <arg name="real_drone_land_script" default="" doc="真机降落脚本路径"/>
+    <arg name="real_drone_hover_script" default="" doc="真机悬停脚本路径"/>
+    
+    <!-- 话题配置 -->
+    <arg name="odom_topic" default="/mavros/local_position/odom" doc="里程计话题"/>
+    <arg name="pose_topic" default="/mavros/setpoint_position/local" doc="位置控制话题"/>
+    <arg name="goal_topic" default="/move_base_simple/goal" doc="导航目标话题"/>
+    
+    <!-- 导航配置 -->
+    <arg name="use_prebuilt_map" default="false" doc="是否使用预构建地图"/>
+    <arg name="use_safety_shield" default="true" doc="是否启用安全防护"/>
+    <arg name="takeoff_height" default="1.5" doc="起飞高度"/>
+    <arg name="rviz" default="false" doc="是否启动RViz（真机通常不需要）"/>
+    
+    <!-- YOLO配置（在地面站运行，这里设为false） -->
+    <arg name="use_yolo_detector" default="false" doc="YOLO在地面站运行"/>
+
+    <!-- ==================== 全局参数 ==================== -->
+    <param name="rl/use_px4" value="true"/>
+    <param name="autonomous_flight/takeoff_height" value="$(arg takeoff_height)"/>
+
+    <!-- ==================== 感知与安全模块 ==================== -->
+    <!-- 使用真机配置，YOLO在地面站 -->
+    <include file="$(find navigation_runner)/launch/safety_and_perception_real.launch">
+        <arg name="use_prebuilt_map" value="$(arg use_prebuilt_map)"/>
+        <arg name="use_safety_shield" value="$(arg use_safety_shield)"/>
+        <arg name="rviz" value="$(arg rviz)"/>
+        <arg name="use_yolo_detector" value="$(arg use_yolo_detector)"/>
+    </include>
+
+    <!-- ==================== Navigation Node (RL 避障导航) ==================== -->
+    <node pkg="navigation_runner" type="navigation_node_wrapper.sh" name="navigation_node" output="screen"/>
+
+    <!-- ==================== Agent Node (LLM API调用) ==================== -->
+    <node pkg="agent" type="agent.py" name="agent_node" output="screen">
+        <!-- 真机模式配置 -->
+        <param name="use_real_drone" value="$(arg use_real_drone)"/>
+        <param name="real_drone_takeoff_script" value="$(arg real_drone_takeoff_script)" if="$(eval arg('real_drone_takeoff_script') != '')"/>
+        <param name="real_drone_land_script" value="$(arg real_drone_land_script)" if="$(eval arg('real_drone_land_script') != '')"/>
+        <param name="real_drone_hover_script" value="$(arg real_drone_hover_script)" if="$(eval arg('real_drone_hover_script') != '')"/>
+        
+        <!-- 话题配置 -->
+        <param name="odom_topic" value="$(arg odom_topic)"/>
+        <param name="pose_topic" value="$(arg pose_topic)"/>
+        <param name="goal_topic" value="$(arg goal_topic)"/>
+        
+        <!-- LLM配置 -->
+        <param name="model_name" value="qwen3-vl-flash"/>
+        <param name="api_base" value="https://dashscope.aliyuncs.com/compatible-mode/v1"/>
+        
+        <!-- 地图感知配置 -->
+        <param name="enable_map_awareness" value="true"/>
+        <param name="obstacle_detection_range" value="5.0"/>
+    </node>
+    
+    <!-- ==================== 信息提示 ==================== -->
+    <node pkg="rostopic" type="rostopic" name="drone_info" 
+          args="echo -n 1 /agent/status" output="screen" launch-prefix="bash -c 'sleep 3; echo; echo ========================================; echo 无人机Agent已启动（混合部署模式）; echo ========================================; echo; echo 📡 里程计: $(arg odom_topic); echo 📡 位置控制: $(arg pose_topic); echo 📡 导航目标: $(arg goal_topic); echo; echo 🤖 LLM: API调用（200MB内存，5%% CPU）; echo 🚁 导航: RL避障（2GB显存）; echo 👁️ YOLO: 地面站运行; echo; echo 等待地面站YOLO连接...; echo ========================================; echo; '"/>
+</launch>

@@ -1,0 +1,107 @@
+<!-- Agent 飞行系统启动文件 -->
+<!-- 
+    架构:
+    agent_gui.py ──▶ agent.py (LLM) ──▶ tools.py ──Topic──▶ navigation_node.py (RL避障) ──▶ 仿真器/真机
+    
+    模式:
+    - 仿真 (use_real_drone=false): 使用 safety_and_perception_sim.launch
+    - 真机 (use_real_drone=true):  使用 safety_and_perception_real.launch
+    
+    使用方法:
+    仿真模式:
+    1. roslaunch uav_simulator start.launch
+    2. roslaunch agent flight.launch
+    3. 新终端: rosrun agent agent_gui.py
+    
+    真机模式:
+    1. roslaunch agent flight.launch use_real_drone:=true \
+         real_drone_takeoff_script:=/path/to/takeoff.sh \
+         real_drone_land_script:=/path/to/land.sh \
+         odom_topic:=/your/robot/odom
+    2. 新终端: rosrun agent agent_gui.py
+    
+    注意: navigation_node.py 启动时会自动起飞！
+-->
+<launch>
+    <!-- ==================== 参数 ==================== -->
+    <!-- 真机/仿真模式选择 -->
+    <arg name="use_real_drone" default="false" doc="是否使用真机模式"/>
+    
+    <!-- 通用参数 -->
+    <arg name="use_px4" default="false" doc="是否使用PX4（仿真时有效）"/>
+    <arg name="use_prebuilt_map" default="false" doc="是否使用预构建地图"/>
+    <arg name="use_real_detector" default="false" doc="是否使用真实检测器"/>
+    <arg name="use_safety_shield" default="true" doc="是否启用安全防护"/>
+    <arg name="takeoff_height" default="1.5" doc="起飞高度"/>
+    <arg name="rviz" default="true" doc="是否启动RViz"/>
+    <arg name="use_yolo_detector" default="false" doc="是否使用YOLO检测器（真机时有效）"/>
+    
+    <!-- PCD地图文件路径，设为空则不发布 -->
+    <arg name="pcd_file" default="" doc="PCD地图文件路径"/>
+    
+    <!-- 真机脚本路径 -->
+    <arg name="real_drone_takeoff_script" default="" doc="真机起飞脚本路径"/>
+    <arg name="real_drone_land_script" default="" doc="真机降落脚本路径"/>
+    <arg name="real_drone_hover_script" default="" doc="真机悬停脚本路径"/>
+    
+    <!-- 话题配置（可选，不设置则使用默认值） -->
+    <arg name="odom_topic" default="" doc="里程计话题"/>
+    <arg name="pose_topic" default="" doc="位置控制话题"/>
+    <arg name="goal_topic" default="/move_base_simple/goal" doc="导航目标话题"/>
+
+    <!-- ==================== 全局参数 ==================== -->
+    <param name="rl/use_px4" value="$(eval arg('use_real_drone') or arg('use_px4'))"/>
+    <param name="autonomous_flight/takeoff_height" value="$(arg takeoff_height)"/>
+
+    <!-- ==================== 感知与安全模块 ==================== -->
+    <!-- 根据真机/仿真模式选择对应的launch文件 -->
+    <group if="$(arg use_real_drone)">
+        <include file="$(find navigation_runner)/launch/safety_and_perception_real.launch">
+            <arg name="use_prebuilt_map" value="$(arg use_prebuilt_map)"/>
+            <arg name="use_safety_shield" value="$(arg use_safety_shield)"/>
+            <arg name="rviz" value="$(arg rviz)"/>
+            <arg name="use_yolo_detector" value="$(arg use_yolo_detector)"/>
+        </include>
+    </group>
+    
+    <group unless="$(arg use_real_drone)">
+        <include file="$(find navigation_runner)/launch/safety_and_perception_sim.launch">
+            <arg name="use_px4" value="$(arg use_px4)"/>
+            <arg name="use_prebuilt_map" value="$(arg use_prebuilt_map)"/>
+            <arg name="use_real_detector" value="$(arg use_real_detector)"/>
+            <arg name="use_safety_shield" value="$(arg use_safety_shield)"/>
+            <arg name="rviz" value="$(arg rviz)"/>
+            <arg name="pcd_file" value="$(arg pcd_file)"/>
+        </include>
+    </group>
+
+    <!-- ==================== Navigation Node (RL 避障导航) ==================== -->
+    <!-- 使用 wrapper 脚本在 NavRL 环境中启动 -->
+    <node pkg="navigation_runner" type="navigation_node_wrapper.sh" name="navigation_node" output="screen"/>
+
+    <!-- ==================== Agent Node (LLM 后台服务) ==================== -->
+    <!-- 需要在 agent_uav 环境中运行 -->
+    <node pkg="agent" type="agent.py" name="agent_node" output="screen">
+        <!-- 真机模式配置 -->
+        <param name="use_real_drone" value="$(arg use_real_drone)"/>
+        <param name="real_drone_takeoff_script" value="$(arg real_drone_takeoff_script)" if="$(eval arg('real_drone_takeoff_script') != '')"/>
+        <param name="real_drone_land_script" value="$(arg real_drone_land_script)" if="$(eval arg('real_drone_land_script') != '')"/>
+        <param name="real_drone_hover_script" value="$(arg real_drone_hover_script)" if="$(eval arg('real_drone_hover_script') != '')"/>
+        
+        <!-- 话题配置 -->
+        <param name="odom_topic" value="$(arg odom_topic)" if="$(eval arg('odom_topic') != '')"/>
+        <param name="pose_topic" value="$(arg pose_topic)" if="$(eval arg('pose_topic') != '')"/>
+        <param name="goal_topic" value="$(arg goal_topic)"/>
+    </node>
+
+    <!-- ==================== Vision Node (视觉检测与场景理解) ==================== -->
+    <!-- 需要在 agent_uav 环境中运行 -->
+    <node pkg="agent" type="vision.py" name="vision_node" output="screen">
+        <param name="use_yolo" value="true"/>
+        <param name="yolo_model_path" value="$(find agent)/pth/yolov8l-worldv2.pt"/>
+        <rosparam param="detection_classes">
+            ["person", "vase", "bus", "bookshelf", "desk", "chair", 
+             "car", "ladder", "lamp", "door", "tv", "dining table", "bottle"]
+        </rosparam>
+    </node>
+</launch>

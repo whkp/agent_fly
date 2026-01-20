@@ -1,0 +1,56 @@
+<!-- 地面站 - 只运行YOLO检测 -->
+<!-- 
+    用途: 在地面站运行视觉检测，减轻无人机算力负担
+    
+    架构:
+    地面站: vision.py (YOLO检测)
+    无人机: agent.py + navigation_node
+    
+    使用方法:
+    1. 配置ROS网络环境变量:
+       export ROS_MASTER_URI=http://DRONE_IP:11311
+       export ROS_IP=GROUND_STATION_IP
+    
+    2. 启动地面站:
+       roslaunch agent vision_station.launch
+    
+    3. 在无人机上启动:
+       roslaunch agent drone_with_llm.launch
+    
+    注意:
+    - 需要稳定的WiFi/4G/5G网络连接
+    - 图像传输延迟约200-500ms
+    - YOLO检测需要GPU（2GB显存）
+-->
+<launch>
+    <!-- ==================== 参数 ==================== -->
+    <arg name="yolo_model_path" default="$(find agent)/pth/yolov8l-worldv2.pt" doc="YOLO模型路径"/>
+    <arg name="image_topic" default="/camera/color/image_raw" doc="图像话题"/>
+    <arg name="depth_topic" default="/camera/aligned_depth_to_color/image_raw" doc="深度图话题"/>
+    
+    <!-- ==================== Vision Node (YOLO检测) ==================== -->
+    <node pkg="agent" type="vision.py" name="vision_node" output="screen">
+        <!-- YOLO配置 -->
+        <param name="use_yolo" value="true"/>
+        <param name="yolo_model_path" value="$(arg yolo_model_path)"/>
+        
+        <!-- 检测类别 -->
+        <rosparam param="detection_classes">
+            ["person", "vase", "bus", "bookshelf", "desk", "chair", 
+             "car", "ladder", "lamp", "door", "tv", "dining table", "bottle"]
+        </rosparam>
+        
+        <!-- 话题配置 -->
+        <param name="image_topic" value="$(arg image_topic)"/>
+        <param name="depth_topic" value="$(arg depth_topic)"/>
+        
+        <!-- 图像传输优化 -->
+        <param name="image_compression_quality" value="80"/>
+        <param name="image_resize_width" value="640"/>
+        <param name="image_resize_height" value="480"/>
+    </node>
+    
+    <!-- ==================== 信息提示 ==================== -->
+    <node pkg="rostopic" type="rostopic" name="vision_station_info" 
+          args="echo -n 1 /vision_node/env_description" output="screen" launch-prefix="bash -c 'sleep 2; echo; echo ========================================; echo 地面站视觉检测已启动; echo ========================================; echo; echo 📡 ROS_MASTER_URI: $ROS_MASTER_URI; echo 📡 ROS_IP: $ROS_IP; echo; echo 等待无人机连接...; echo ========================================; echo; '"/>
+</launch>

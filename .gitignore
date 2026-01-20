@@ -1,0 +1,26 @@
+# ROS 编译产物
+devel/
+build/
+logs/
+
+# Python 缓存
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+
+# IDE 配置
+.vscode/
+.idea/
+
+# Catkin 工具
+.catkin_workspace
+.catkin_tools/
+
+# 其他
+*.swp
+*.swo
+*~
+.DS_Store
