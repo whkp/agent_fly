@@ -38,7 +38,6 @@ catkin_package(
 catkin_install_python(PROGRAMS
   agent.py
   vision.py
-  agent_cli.py
   tools.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
@@ -68,8 +67,7 @@ catkin_install_python(PROGRAMS
 
 ## Install shell scripts
 install(PROGRAMS
-  scripts/start_cli.sh
-  scripts/run_flight.sh
+  scripts/vision_bridge.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 

@@ -5,73 +5,98 @@
 # 此环境配置文件用于创建支持GPU加速的无人机Agent系统
 # 使用 CERLAB autonomous_flight 导航系统
 # 
+# 环境信息:
+#   - 环境名称: agent_uav
+#   - 环境路径: /home/namy/anaconda3/envs/agent_uav
+#   - Python版本: 3.10.13
+#   - CUDA版本: 12.1
+# 
 # GPU支持:
 #   - NVIDIA GPU with CUDA 12.1+ 
-#   - 已测试硬件: NVIDIA GeForce RTX 3060 Ti
+#   - PyTorch 2.5.1 with CUDA 12.1
 # 
 # 安装说明:
 #   1. 创建环境: conda env create -f environment.yaml
 #   2. 激活环境: conda activate agent_uav
 #   3. 验证GPU: python -c "import torch; print(torch.cuda.is_available())"
 # 
+# 更新日期: 2025-01-19
 # ============================================================================
 
 name: agent_uav
 channels:
-  - pytorch
   - conda-forge
   - defaults
 
 dependencies:
-  # Python版本
-  - python=3.10
+  # Python版本 (当前安装: 3.10.13)
+  - python=3.10.13
 
-  # 计算机视觉
-  - opencv>=4.5.0
+  # 计算机视觉 (当前安装: opencv 4.7.0)
+  - opencv=4.7.0
   - pillow>=8.0.0
 
-  # 科学计算
-  - numpy>=1.22.0
+  # 科学计算 (当前安装: numpy 1.26.4)
+  - numpy=1.26.4
   - scipy>=1.10.0
 
   # 其他工具
   - pyyaml>=5.4.0
   - matplotlib>=3.3.0
+  - python-dateutil>=2.9.0
 
   - pip
 
   - pip:
       # ============================================
       # 深度学习框架 - GPU加速版本 (CUDA 12.1)
+      # 当前安装版本: torch 2.5.1+cu121
+      # 注意: pip安装时会自动识别+cu121后缀
       # ============================================
-      - torch==2.5.1+cu121
-      - torchvision==0.20.1+cu121
-      - torchaudio==2.5.1+cu121
+      - torch==2.5.1
+      - torchvision==0.20.1
+      - torchaudio==2.5.1
+      - --extra-index-url https://download.pytorch.org/whl/cu121
       
       # ============================================
       # YOLO检测
+      # 当前安装版本: ultralytics 8.3.240
       # ============================================
-      - ultralytics>=8.3.0
+      - ultralytics==8.3.240
+      - ultralytics-thop==2.0.18
       
       # ============================================
-      # LLM Agent
+      # LLM Agent 框架
+      # 当前安装版本: langchain 0.2.16
       # ============================================
       - openai>=1.0.0
       - langchain==0.2.16
       - langchain-community==0.2.16
       - langchain-openai==0.1.23
       - langchain-core==0.2.38
+      - langchain-text-splitters==0.2.4
+      - pydantic>=2.0.0
       
-      # Transformers
-      - transformers>=4.30.0
+      # ============================================
+      # Transformers (多模态模型支持)
+      # 当前安装版本: transformers 4.46.3
+      # ============================================
+      - transformers==4.46.3
       - huggingface-hub>=0.16.0
       
       # ============================================
-      # ROS相关
+      # ROS相关 (ROS Noetic)
       # ============================================
       - rospkg
       - catkin_pkg
       - empy
+      
+      # ============================================
+      # GUI 依赖 (PyQt5)
+      # ============================================
+      - PyQt5>=5.15.0
+      - PyQt5-Qt5>=5.15.0
+      - PyQt5-sip>=12.8.0
       
       # ============================================
       # 其他依赖
@@ -79,3 +104,4 @@ dependencies:
       - requests>=2.25.0
       - tqdm>=4.65.0
       - colorama>=0.4.6
+      - python-xlib>=0.33

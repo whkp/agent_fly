@@ -1,4 +1,15 @@
 #!/home/namy/anaconda3/envs/agent_uav/bin/python3
+"""
+Vision 节点 - 仅保留 YOLO 检测功能
+
+功能:
+    - YOLO 物体检测（实时）
+    - 深度估计
+    - 像素坐标 → 世界坐标转换
+    
+注意:
+    - VLM 场景描述功能已移至 agent.py（统一多模态模型）
+"""
 
 # 解决 libtiff 版本冲突问题
 # 必须在导入 cv2/cv_bridge 之前加载系统 libtiff
@@ -9,13 +20,11 @@ except OSError:
     pass
 
 import numpy as np
-import base64
 import cv2
 import json
 import os
 
 import rospy
-import tf
 from geometry_msgs.msg import PointStamped
 from std_msgs.msg import String
 from sensor_msgs.msg import Image, CameraInfo
@@ -31,13 +40,6 @@ try:
 except ImportError:
     YOLO_AVAILABLE = False
     rospy.logwarn("YOLOWorld未安装，YOLO检测功能将不可用")
-
-try:
-    from openai import OpenAI
-    OPENAI_AVAILABLE = True
-except ImportError:
-    OPENAI_AVAILABLE = False
-    rospy.logwarn("OpenAI未安装，VLM功能将不可用")
 
 try:
     import torch
@@ -66,7 +68,6 @@ class VisionNode:
         use_yolo = rospy.get_param('~use_yolo', True)  # 默认启用YOLO
         model_path = rospy.get_param('~yolo_model_path', 
                                      os.path.join(os.path.dirname(__file__), 'pth/yolov8l-worldv2.pt'))
-        self.use_vlm = rospy.get_param('~use_vlm', True)
         
         # 检测类别配置
         self.detection_classes = rospy.get_param('~detection_classes', [
@@ -116,10 +117,13 @@ class VisionNode:
         self.drone_position = None
         self.drone_orientation = None
         
-        # ROS订阅 - PX4仿真器话题
+        # 参数配置 - 里程计话题
+        self.odom_topic = rospy.get_param('~odom_topic', '/CERLAB/quadcopter/odom')
+        
+        # ROS订阅
         rospy.Subscriber("/camera/color/image_raw", Image, self.horizon_image_callback)
         rospy.Subscriber("/camera/depth/image_raw", Image, self.horizon_depth_callback)
-        rospy.Subscriber("/mavros/local_position/odom", Odometry, self.odom_callback)
+        rospy.Subscriber(self.odom_topic, Odometry, self.odom_callback)
         rospy.Subscriber("/agent_node/vision_command", String, self.command_callback)
 
         # ROS发布
@@ -128,8 +132,9 @@ class VisionNode:
         rospy.loginfo("=" * 50)
         rospy.loginfo("Vision节点配置:")
         rospy.loginfo(f"  设备类型: {self.device}")
+        rospy.loginfo(f"  里程计话题: {self.odom_topic}")
         rospy.loginfo(f"  YOLO检测: {'启用' if self.model else '禁用'}")
-        rospy.loginfo(f"  VLM描述: {'启用' if self.use_vlm else '禁用'}")
+        rospy.loginfo(f"  VLM描述: 已移至agent.py（统一多模态模型）")
         rospy.loginfo("=" * 50)
 
 
@@ -146,23 +151,24 @@ class VisionNode:
             rospy.logwarn_throttle(5.0, f"RGB图像处理失败: {e}")
     
     def _run_yolo_detection(self):
-        """运行YOLO检测并可视化"""
+        """运行YOLO检测（不显示可视化窗口）"""
         try:
             results = self.model.predict(self.horizon_image, verbose=False)
             
             for i, result in enumerate(results):
                 self.result_boxes = result.boxes
-                annotated_frame = result.plot()
-
-                # 添加深度信息
-                for box in self.result_boxes:
-                    x1, y1, x2, y2 = map(int, box.xyxy[0])
-                    depth_value = self.get_depth_value(x1, y1, x2, y2)
-                    cv2.putText(annotated_frame, f"{depth_value:.2f}m", 
-                              (x1, y1 - 20), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 0, 0), 2)
-
-            cv2.imshow("YOLO Detection", annotated_frame)
-            cv2.waitKey(1)
+                # 注释掉可视化部分，避免弹出检测框
+                # annotated_frame = result.plot()
+                # 
+                # # 添加深度信息
+                # for box in self.result_boxes:
+                #     x1, y1, x2, y2 = map(int, box.xyxy[0])
+                #     depth_value = self.get_depth_value(x1, y1, x2, y2)
+                #     cv2.putText(annotated_frame, f"{depth_value:.2f}m", 
+                #               (x1, y1 - 20), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 0, 0), 2)
+                # 
+                # cv2.imshow("YOLO Detection", annotated_frame)
+                # cv2.waitKey(1)
         except Exception as e:
             rospy.logwarn_throttle(5.0, f"YOLO检测失败: {e}")
 
@@ -179,74 +185,42 @@ class VisionNode:
         """接收无人机位姿"""
         self.drone_position = msg.pose.pose.position
         self.drone_orientation = msg.pose.pose.orientation
+        
+        # 首次接收到位姿信息时打印日志
+        if not hasattr(self, '_odom_received'):
+            self._odom_received = True
+            rospy.loginfo(f"✅ 已接收到里程计数据: 位置({msg.pose.pose.position.x:.2f}, {msg.pose.pose.position.y:.2f}, {msg.pose.pose.position.z:.2f})")
 
     def command_callback(self, msg):
         """agent节点发来的命令"""
         try:
-            command = msg.data.lower()
+            command = msg.data
             
-            if command == "get_objects":
+            # 检查是否是 JSON 格式命令
+            if command.startswith('{'):
+                try:
+                    cmd_data = json.loads(command)
+                    cmd_type = cmd_data.get('type')
+                    
+                    if cmd_type == 'scene_description':
+                        # VLM 场景描述请求，由 agent.py 处理，这里忽略
+                        rospy.logdebug(f"收到 VLM 请求，由 agent.py 处理")
+                        return
+                    else:
+                        rospy.logwarn(f"未知命令类型: {cmd_type}")
+                        return
+                except json.JSONDecodeError:
+                    pass  # 不是 JSON，继续按普通命令处理
+            
+            # 普通命令处理
+            command_lower = command.lower()
+            if command_lower == "get_objects":
                 # 获取检测到的物体及其世界坐标
                 self.get_world_coordinates()
-            elif command == "describe_scene":
-                # 使用VLM描述场景
-                if self.use_vlm:
-                    self.vlm_describe_scene()
-                else:
-                    rospy.logwarn("VLM未启用")
             else:
                 rospy.logwarn(f"未知命令: {command}")
         except Exception as e:
             rospy.logerr(f"命令处理失败: {e}")
-
-    def vlm_describe_scene(self):
-        """使用VLM模型对图像进行描述"""
-        if not OPENAI_AVAILABLE:
-            rospy.logwarn("OpenAI库未安装，无法使用VLM功能")
-            self.env_desc_pub.publish("错误：OpenAI库未安装")
-            return
-        
-        if self.horizon_image is None:
-            rospy.logwarn("没有可用的图像")
-            self.env_desc_pub.publish("错误：没有可用的图像")
-            return
-        
-        try:
-            # 保存临时图像
-            temp_path = "/tmp/vision_temp.jpg"
-            cv2.imwrite(temp_path, self.horizon_image)
-            
-            with open(temp_path, "rb") as image_file:
-                base64_image = base64.b64encode(image_file.read()).decode("utf-8")
-            
-            # 从参数服务器获取API配置
-            api_key = rospy.get_param('~vlm_api_key', '')
-            api_base = rospy.get_param('~vlm_api_base', 'https://dashscope.aliyuncs.com/compatible-mode/v1')
-            
-            if not api_key:
-                rospy.logwarn("未配置VLM API密钥")
-                self.env_desc_pub.publish("错误：未配置API密钥")
-                return
-            
-            client = OpenAI(api_key=api_key, base_url=api_base)
-            completion = client.chat.completions.create(
-                model="qwen-vl-plus",
-                messages=[{
-                    "role": "user",
-                    "content": [
-                        {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}},
-                        {"type": "text", "text": "请简洁描述当前环境中的物体、障碍物和可通行区域，字数少于100字"}
-                    ]
-                }]
-            )
-            
-            description = completion.choices[0].message.content
-            self.env_desc_pub.publish(description)
-            rospy.loginfo(f"📝 场景描述: {description}")
-            
-        except Exception as e:
-            rospy.logerr(f"VLM描述失败: {e}")
-            self.env_desc_pub.publish(f"错误：{str(e)}")
 
     def get_world_coordinates(self):
         """将检测到的目标转换为世界坐标并发布"""
@@ -328,66 +302,73 @@ class VisionNode:
         return float('nan')
     
     def get_coordinates(self, u, v, depth):
-        """将像素坐标和深度值转为世界坐标"""
-        camera_link = device_info[self.device]["camera_link"]
-        base_link = device_info[self.device]["base_link"]
-        camera_info = rospy.wait_for_message(device_info[self.device]["camerainfo_topic"], CameraInfo, timeout=5.0)
-        camera_fx = camera_info.K[0]       # 焦距 fx
-        camera_fy = camera_info.K[4]       # 焦距 fy
-        camera_cx = camera_info.K[2]       # 光心 cx
-        camera_cy = camera_info.K[5]
-        # 1. 像素坐标和深度值 -> 相机坐标
-        camera_point = PointStamped()
-        camera_point.header.frame_id = camera_link
-        camera_point.point.y = - (u - camera_cx) * depth / camera_fx
-        camera_point.point.z = - (v - camera_cy) * depth / camera_fy
-        camera_point.point.x = float(depth)
+        """将像素坐标和深度值转为世界坐标（直接计算，绕过TF）"""
         try:
-            # 2. 相机坐标 -> 机器人（无人机）坐标
-            listener = tf.TransformListener()
-            listener.waitForTransform(base_link, camera_link, rospy.Time(0), rospy.Duration(1.0))
-            camera_point_in_base_link = listener.transformPoint(base_link, camera_point)
-
-            # 3. 机器人（无人机）坐标 -> 世界坐标
+            # 获取相机内参
+            camera_info = rospy.wait_for_message(
+                device_info[self.device]["camerainfo_topic"], 
+                CameraInfo, 
+                timeout=5.0
+            )
+            camera_fx = camera_info.K[0]  # 焦距 fx
+            camera_fy = camera_info.K[4]  # 焦距 fy
+            camera_cx = camera_info.K[2]  # 光心 cx
+            camera_cy = camera_info.K[5]  # 光心 cy
+            
+            # 检查无人机位姿是否可用
             if self.drone_position is None or self.drone_orientation is None:
-                rospy.logerr("无人机位姿信息未获取到！")
+                rospy.logerr(f"无人机位姿信息未获取到！当前订阅话题: {self.odom_topic}")
+                rospy.logerr(f"请检查: 1) 话题是否存在 (rostopic list | grep odom)")
+                rospy.logerr(f"        2) 话题是否有数据 (rostopic echo {self.odom_topic} -n 1)")
                 return None
             
-            # 将四元数转为欧拉角（yaw, pitch, roll）
-            qx, qy, qz, qw = self.drone_orientation.x, self.drone_orientation.y, self.drone_orientation.z, self.drone_orientation.w
+            # 1. 像素坐标 → 相机坐标系
+            # 相机坐标系：X-前方（深度）, Y-左方, Z-上方
+            camera_x = depth
+            camera_y = -(u - camera_cx) * depth / camera_fx
+            camera_z = -(v - camera_cy) * depth / camera_fy
+            
+            rospy.logdebug(f"相机坐标: x={camera_x:.2f}, y={camera_y:.2f}, z={camera_z:.2f}")
+            
+            # 2. 相机坐标 → base_link 坐标
+            # 假设相机安装在无人机中心，朝向与无人机一致（无俯仰角）
+            # base_link 坐标系：X-前方, Y-左方, Z-上方
+            base_x = camera_x
+            base_y = camera_y
+            base_z = camera_z
+            
+            # 3. base_link 坐标 → 世界坐标（map）
+            # 获取无人机的 yaw 角（偏航角）
+            qx = self.drone_orientation.x
+            qy = self.drone_orientation.y
+            qz = self.drone_orientation.z
+            qw = self.drone_orientation.w
             roll, pitch, yaw = euler_from_quaternion([qx, qy, qz, qw])
-
-            # 无人机在地图坐标系中的位置
-            drone_position_map = [self.drone_position.x, self.drone_position.y, self.drone_position.z]
-
-            # 旋转矩阵（从 base_link 转换到 map）
-            rotation_matrix = self._get_rotation_matrix(yaw)
-
-            # 将相机点从 base_link 转换到 map 坐标系
-            camera_coords_in_base_link = [camera_point_in_base_link.point.x, camera_point_in_base_link.point.y, camera_point_in_base_link.point.z]
-            camera_coords_in_map = self._apply_rotation_and_translation(camera_coords_in_base_link, rotation_matrix, drone_position_map)
-
-            return tuple(round(x, 3) for x in camera_coords_in_map)
-
-        except (tf.Exception) as e:
-            rospy.logerr(f"Transform failed: {e}")
+            
+            # 应用旋转（只考虑 yaw，假设无人机水平飞行）
+            cos_yaw = np.cos(yaw)
+            sin_yaw = np.sin(yaw)
+            
+            # 旋转矩阵应用
+            rotated_x = base_x * cos_yaw - base_y * sin_yaw
+            rotated_y = base_x * sin_yaw + base_y * cos_yaw
+            rotated_z = base_z
+            
+            # 加上无人机的世界坐标
+            world_x = rotated_x + self.drone_position.x
+            world_y = rotated_y + self.drone_position.y
+            world_z = rotated_z + self.drone_position.z
+            
+            rospy.logdebug(f"世界坐标: x={world_x:.2f}, y={world_y:.2f}, z={world_z:.2f}")
+            
+            return (world_x, world_y, world_z)
+            
+        except Exception as e:
+            rospy.logerr(f"坐标转换失败: {e}")
+            import traceback
+            rospy.logerr(traceback.format_exc())
             return None
-    
-    def _get_rotation_matrix(self, yaw):
-        """根据yaw角计算旋转矩阵"""
-        rotation_matrix = [
-            [np.cos(yaw), -np.sin(yaw), 0],
-            [np.sin(yaw), np.cos(yaw), 0],
-            [0, 0, 1]
-        ]
-        return rotation_matrix
 
-    def _apply_rotation_and_translation(self, camera_coords, rotation_matrix, translation_vector):
-        """应用旋转和位移将相机坐标系转换到地图坐标系"""
-        rotated_coords = np.dot(rotation_matrix, camera_coords)
-        transformed_coords = rotated_coords + np.array(translation_vector)
-        return transformed_coords
-    
 
 if __name__ == '__main__':
     try:
