@@ -1,0 +1,32 @@
+{
+  "platform_type": "px4_sim",
+  "platforms": {
+    "px4_sim": {
+      "name": "PX4 仿真平台",
+      "description": "适配 PX4 + Gazebo 仿真环境",
+      "takeoff_height": 1.5,
+      "odom_topic": "/vins_fusion/imu_propagate",
+      "cmd_topic": "/position_cmd",
+      "use_px4ctrl": true,
+      "notes": "使用 px4ctrl 控制器，发布 PositionCommand 消息"
+    },
+    "px4_real": {
+      "name": "PX4 真机平台",
+      "description": "适配 PX4 真实无人机",
+      "takeoff_height": 1.5,
+      "odom_topic": "/mavros/local_position/odom",
+      "use_mavros": true,
+      "offboard_mode": true,
+      "notes": "使用 MAVROS，需要切换到 OFFBOARD 模式"
+    },
+    "cerlab_sim": {
+      "name": "CERLAB 仿真平台",
+      "description": "适配非 PX4 的简化四旋翼仿真器",
+      "takeoff_height": 1.5,
+      "odom_topic": "/CERLAB/quadcopter/odom",
+      "setpoint_topic": "/CERLAB/quadcopter/setpoint_pose",
+      "use_setpoint": true,
+      "notes": "使用 PoseStamped 消息控制，适合快速测试"
+    }
+  }
+}

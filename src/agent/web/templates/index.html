@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agent UAV Console</title>
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 1400px;
+            height: 90vh;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            display: flex;
+            overflow: hidden;
+        }
+
+        /* 左侧面板 - 状态 */
+        .sidebar {
+            width: 300px;
+            background: #2c3e50;
+            color: white;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .logo {
+            font-size: 24px;
+            font-weight: bold;
+            text-align: center;
+            padding: 10px;
+            border-bottom: 2px solid #34495e;
+        }
+
+        .status-card {
+            background: #34495e;
+            border-radius: 10px;
+            padding: 15px;
+        }
+
+        .status-card h3 {
+            font-size: 14px;
+            color: #95a5a6;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+        }
+
+        .status-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #2c3e50;
+        }
+
+        .status-item:last-child {
+            border-bottom: none;
+        }
+
+        .status-label {
+            color: #bdc3c7;
+            font-size: 13px;
+        }
+
+        .status-value {
+            color: #ecf0f1;
+            font-weight: 600;
+            font-size: 13px;
+        }
+
+        .status-indicator {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 5px;
+        }
+
+        .status-indicator.connected {
+            background: #2ecc71;
+            box-shadow: 0 0 10px #2ecc71;
+        }
+
+        .status-indicator.disconnected {
+            background: #e74c3c;
+        }
+
+        /* 工具面板 */
+        .tools-panel {
+            margin-top: auto;
+        }
+
+        .tool-btn {
+            width: 100%;
+            padding: 12px;
+            margin: 5px 0;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .tool-btn.takeoff {
+            background: #3498db;
+            color: white;
+        }
+
+        .tool-btn.takeoff:hover {
+            background: #2980b9;
+            transform: translateY(-2px);
+        }
+
+        .tool-btn.land {
+            background: #e74c3c;
+            color: white;
+        }
+
+        .tool-btn.land:hover {
+            background: #c0392b;
+            transform: translateY(-2px);
+        }
+
+        /* 主聊天区域 */
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: white;
+        }
+
+        .chat-header {
+            padding: 20px 30px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #e9ecef;
+        }
+
+        .chat-header h1 {
+            font-size: 24px;
+            color: #2c3e50;
+        }
+
+        .chat-header p {
+            color: #7f8c8d;
+            font-size: 14px;
+            margin-top: 5px;
+        }
+
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 30px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .message {
+            max-width: 70%;
+            padding: 15px 20px;
+            border-radius: 15px;
+            animation: fadeIn 0.3s;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .message.user {
+            align-self: flex-end;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-bottom-right-radius: 5px;
+        }
+
+        .message.assistant {
+            align-self: flex-start;
+            background: #f1f3f5;
+            color: #2c3e50;
+            border-bottom-left-radius: 5px;
+        }
+
+        .message.thought {
+            align-self: flex-start;
+            background: #fff3cd;
+            color: #856404;
+            border-left: 4px solid #ffc107;
+        }
+
+        .message.action {
+            align-self: flex-start;
+            background: #d1ecf1;
+            color: #0c5460;
+            border-left: 4px solid #17a2b8;
+        }
+
+        .message.observation {
+            align-self: flex-start;
+            background: #d4edda;
+            color: #155724;
+            border-left: 4px solid #28a745;
+        }
+
+        .message.final {
+            align-self: flex-start;
+            background: #d1ecf1;
+            color: #0c5460;
+            border-left: 4px solid #17a2b8;
+            font-weight: 600;
+        }
+
+        .message-label {
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            opacity: 0.7;
+            margin-bottom: 5px;
+        }
+
+        .message-content {
+            font-size: 14px;
+            line-height: 1.6;
+        }
+
+        /* 输入区域 */
+        .chat-input {
+            padding: 20px 30px;
+            background: #f8f9fa;
+            border-top: 1px solid #e9ecef;
+        }
+
+        .input-wrapper {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .input-field {
+            flex: 1;
+            padding: 15px 20px;
+            border: 2px solid #e9ecef;
+            border-radius: 25px;
+            font-size: 14px;
+            outline: none;
+            transition: all 0.3s;
+        }
+
+        .input-field:focus {
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .send-btn {
+            padding: 15px 30px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 25px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .send-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .send-btn:active {
+            transform: translateY(0);
+        }
+
+        .send-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* 快捷命令 */
+        .quick-commands {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+            flex-wrap: wrap;
+        }
+
+        .quick-cmd {
+            padding: 8px 15px;
+            background: white;
+            border: 1px solid #dee2e6;
+            border-radius: 15px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .quick-cmd:hover {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+        }
+
+        /* 滚动条样式 */
+        .chat-messages::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .chat-messages::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+
+        .chat-messages::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 4px;
+        }
+
+        .chat-messages::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+
+        /* 响应式 */
+        @media (max-width: 768px) {
+            .container {
+                flex-direction: column;
+            }
+
+            .sidebar {
+                width: 100%;
+                max-height: 200px;
+            }
+
+            .message {
+                max-width: 85%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- 左侧状态面板 -->
+        <div class="sidebar">
+            <div class="logo">
+                🚁 Agent UAV
+            </div>
+
+            <div class="status-card">
+                <h3>连接状态</h3>
+                <div class="status-item">
+                    <span class="status-label">
+                        <span class="status-indicator" id="connection-indicator"></span>
+                        连接
+                    </span>
+                    <span class="status-value" id="connection-status">连接中...</span>
+                </div>
+            </div>
+
+            <div class="status-card">
+                <h3>位置信息</h3>
+                <div class="status-item">
+                    <span class="status-label">X</span>
+                    <span class="status-value" id="pos-x">0.00 m</span>
+                </div>
+                <div class="status-item">
+                    <span class="status-label">Y</span>
+                    <span class="status-value" id="pos-y">0.00 m</span>
+                </div>
+                <div class="status-item">
+                    <span class="status-label">Z</span>
+                    <span class="status-value" id="pos-z">0.00 m</span>
+                </div>
+                <div class="status-item">
+                    <span class="status-label">Yaw</span>
+                    <span class="status-value" id="pos-yaw">0.0°</span>
+                </div>
+            </div>
+
+            <div class="status-card">
+                <h3>飞行状态</h3>
+                <div class="status-item">
+                    <span class="status-label">状态</span>
+                    <span class="status-value" id="flight-status">IDLE</span>
+                </div>
+            </div>
+
+            <div class="tools-panel">
+                <button class="tool-btn takeoff" onclick="quickTakeoff()">🛫 起飞</button>
+                <button class="tool-btn land" onclick="quickLand()">🛬 降落</button>
+            </div>
+        </div>
+
+        <!-- 主聊天区域 -->
+        <div class="main-content">
+            <div class="chat-header">
+                <h1>Agent 控制台</h1>
+                <p>输入自然语言指令控制无人机</p>
+            </div>
+
+            <div class="chat-messages" id="chat-messages">
+                <div class="message assistant">
+                    <div class="message-label">系统</div>
+                    <div class="message-content">
+                        欢迎使用 Agent UAV 控制台！<br>
+                        你可以使用自然语言控制无人机，例如：<br>
+                        • "起飞到2米高度"<br>
+                        • "向前飞5米"<br>
+                        • "降落"
+                    </div>
+                </div>
+            </div>
+
+            <div class="chat-input">
+                <div class="quick-commands">
+                    <div class="quick-cmd" onclick="sendQuickCommand('获取当前位置')">📍 获取位置</div>
+                    <div class="quick-cmd" onclick="sendQuickCommand('获取飞行状态')">📊 获取状态</div>
+                    <div class="quick-cmd" onclick="sendQuickCommand('向前飞3米')">➡️ 向前飞3米</div>
+                    <div class="quick-cmd" onclick="sendQuickCommand('上升1米')">⬆️ 上升1米</div>
+                </div>
+                <div class="input-wrapper">
+                    <input 
+                        type="text" 
+                        class="input-field" 
+                        id="command-input" 
+                        placeholder="输入指令..."
+                        onkeypress="handleKeyPress(event)"
+                    >
+                    <button class="send-btn" onclick="sendCommand()">发送</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // WebSocket 连接
+        const socket = io();
+
+        // 连接事件
+        socket.on('connect', () => {
+            console.log('已连接到服务器');
+            updateConnectionStatus(true);
+            socket.emit('request_status');
+        });
+
+        socket.on('disconnect', () => {
+            console.log('与服务器断开连接');
+            updateConnectionStatus(false);
+        });
+
+        // 状态更新
+        socket.on('status_update', (data) => {
+            updateStatus(data);
+        });
+
+        // Agent 日志
+        socket.on('agent_log', (log) => {
+            addMessage(log);
+        });
+
+        // 聊天历史
+        socket.on('chat_history', (data) => {
+            data.history.forEach(log => addMessage(log));
+        });
+
+        // 命令结果
+        socket.on('command_result', (result) => {
+            console.log('命令结果:', result);
+        });
+
+        // 工具结果
+        socket.on('tool_result', (result) => {
+            console.log('工具结果:', result);
+        });
+
+        // 更新连接状态
+        function updateConnectionStatus(connected) {
+            const indicator = document.getElementById('connection-indicator');
+            const status = document.getElementById('connection-status');
+            
+            if (connected) {
+                indicator.className = 'status-indicator connected';
+                status.textContent = '已连接';
+            } else {
+                indicator.className = 'status-indicator disconnected';
+                status.textContent = '未连接';
+            }
+        }
+
+        // 更新状态
+        function updateStatus(data) {
+            document.getElementById('pos-x').textContent = (data.x || 0).toFixed(2) + ' m';
+            document.getElementById('pos-y').textContent = (data.y || 0).toFixed(2) + ' m';
+            document.getElementById('pos-z').textContent = (data.z || 0).toFixed(2) + ' m';
+            document.getElementById('pos-yaw').textContent = (data.yaw || 0).toFixed(1) + '°';
+            document.getElementById('flight-status').textContent = data.status || 'Unknown';
+        }
+
+        // 添加消息
+        function addMessage(log) {
+            const messagesDiv = document.getElementById('chat-messages');
+            const messageDiv = document.createElement('div');
+            
+            const role = log.role || 'assistant';
+            const type = log.type || 'Unknown';
+            const content = log.content || '';
+            
+            let messageClass = 'message ';
+            let label = '';
+            
+            if (role === 'user') {
+                messageClass += 'user';
+                label = '用户';
+            } else if (type === 'Thought') {
+                messageClass += 'thought';
+                label = '思考';
+            } else if (type === 'Action') {
+                messageClass += 'action';
+                label = '动作';
+            } else if (type === 'Observation') {
+                messageClass += 'observation';
+                label = '观察';
+            } else if (type === 'Final') {
+                messageClass += 'final';
+                label = '完成';
+            } else {
+                messageClass += 'assistant';
+                label = 'Agent';
+            }
+            
+            messageDiv.className = messageClass;
+            messageDiv.innerHTML = `
+                <div class="message-label">${label}</div>
+                <div class="message-content">${escapeHtml(content)}</div>
+            `;
+            
+            messagesDiv.appendChild(messageDiv);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+
+        // 发送命令
+        function sendCommand() {
+            const input = document.getElementById('command-input');
+            const command = input.value.trim();
+            
+            if (!command) return;
+            
+            // 添加用户消息
+            addMessage({
+                role: 'user',
+                type: 'Question',
+                content: command
+            });
+            
+            // 发送到服务器
+            socket.emit('send_command', { command: command });
+            
+            // 清空输入
+            input.value = '';
+        }
+
+        // 快捷命令
+        function sendQuickCommand(command) {
+            document.getElementById('command-input').value = command;
+            sendCommand();
+        }
+
+        // 快捷起飞
+        function quickTakeoff() {
+            const height = prompt('起飞高度 (米):', '1.5');
+            if (height) {
+                socket.emit('call_tool', {
+                    tool_name: 'takeoff',
+                    params: { height: parseFloat(height) }
+                });
+                addMessage({
+                    role: 'user',
+                    type: 'Question',
+                    content: `起飞到${height}米`
+                });
+            }
+        }
+
+        // 快捷降落
+        function quickLand() {
+            if (confirm('确认降落？')) {
+                socket.emit('call_tool', {
+                    tool_name: 'land',
+                    params: {}
+                });
+                addMessage({
+                    role: 'user',
+                    type: 'Question',
+                    content: '降落'
+                });
+            }
+        }
+
+        // 键盘事件
+        function handleKeyPress(event) {
+            if (event.key === 'Enter') {
+                sendCommand();
+            }
+        }
+
+        // HTML 转义
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // 页面加载完成
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('command-input').focus();
+        });
+    </script>
+</body>
+</html>

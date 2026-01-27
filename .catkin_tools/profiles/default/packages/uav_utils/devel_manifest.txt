@@ -1,0 +1,4 @@
+utils/uav_utils
+/home/namy/Documents/agent_real/devel/.private/uav_utils/share/uav_utils/cmake/uav_utilsConfig.cmake /home/namy/Documents/agent_real/devel/share/uav_utils/cmake/uav_utilsConfig.cmake
+/home/namy/Documents/agent_real/devel/.private/uav_utils/share/uav_utils/cmake/uav_utilsConfig-version.cmake /home/namy/Documents/agent_real/devel/share/uav_utils/cmake/uav_utilsConfig-version.cmake
+/home/namy/Documents/agent_real/devel/.private/uav_utils/lib/pkgconfig/uav_utils.pc /home/namy/Documents/agent_real/devel/lib/pkgconfig/uav_utils.pc

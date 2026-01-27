@@ -1,0 +1,151 @@
+<launch>
+    <!-- 
+    ============================================================================
+    地面站视觉处理启动文件
+    ============================================================================
+    
+    用途：
+        在地面站运行 YOLO 检测和 VLM 场景描述，减轻机载计算机负担
+    
+    使用场景：
+        1. 机载计算机：运行 agent.py (控制逻辑) + px4ctrl + VINS-Fusion
+        2. 地面站：运行本启动文件 (视觉处理)
+    
+    网络配置：
+        需要配置 ROS 多机通信，确保地面站和机载计算机在同一网络
+        
+        机载计算机 (IP: 192.168.1.100):
+            export ROS_MASTER_URI=http://192.168.1.100:11311
+            export ROS_IP=192.168.1.100
+        
+        地面站 (IP: 192.168.1.200):
+            export ROS_MASTER_URI=http://192.168.1.100:11311
+            export ROS_IP=192.168.1.200
+    
+    启动方式：
+        # 基础启动（使用默认参数）
+        roslaunch agent vision_groundstation.launch
+        
+        # 自定义参数启动
+        roslaunch agent vision_groundstation.launch \
+            use_yolo:=true \
+            use_vlm:=true \
+            yolo_model_path:=/path/to/your/model.pt \
+            detection_classes:="['person','car','chair']"
+    
+    话题订阅（从机载计算机）：
+        - /camera/color/image_raw    (RGB图像)
+        - /camera/depth/image_raw    (深度图像)
+        - /mavros/local_position/odom (无人机位姿)
+        - /agent_node/vision_command  (Agent命令)
+    
+    话题发布（到机载计算机）：
+        - /vision_node/env_description (环境描述/检测结果)
+    
+    注意事项：
+        1. 确保网络延迟 < 100ms，否则影响实时性
+        2. 图像话题带宽较大，建议使用有线网络或5GHz WiFi
+        3. 可以使用 image_transport compressed 减少带宽占用
+        4. 地面站需要有 GPU 以获得最佳性能
+    
+    ============================================================================
+    -->
+    
+    <!-- ==================== 参数配置 ==================== -->
+    
+    <!-- YOLO 检测配置 -->
+    <arg name="use_yolo" default="true" 
+         doc="是否启用YOLO检测" />
+    
+    <arg name="yolo_model_path" default="$(find agent)/pth/yolov8l-worldv2.pt" 
+         doc="YOLO模型文件路径" />
+    
+    <arg name="detection_classes" default="['person', 'vase', 'bus', 'bookshelf', 'desk', 'chair', 'car', 'ladder', 'lamp', 'door', 'tv', 'dining table', 'bottle']" 
+         doc="检测类别列表（Python列表格式）" />
+    
+    <!-- VLM 配置 -->
+    <arg name="use_vlm" default="true" 
+         doc="是否启用VLM场景描述" />
+    
+    <arg name="vlm_model" default="qwen-vl-plus" 
+         doc="VLM模型名称（qwen-vl-plus, gpt-4-vision-preview等）" />
+    
+    <arg name="vlm_api_key" default="" 
+         doc="VLM API密钥（留空则从环境变量OPENAI_API_KEY读取）" />
+    
+    <arg name="vlm_api_base" default="https://dashscope.aliyuncs.com/compatible-mode/v1" 
+         doc="VLM API地址" />
+    
+    <!-- 设备配置 -->
+    <arg name="device" default="px4_uav" 
+         doc="设备类型（px4_uav）" />
+    
+    <!-- 图像传输配置 -->
+    <arg name="compressed" default="false" 
+         doc="是否使用压缩图像传输（减少带宽）" />
+    
+    
+    <!-- ==================== 图像传输配置 ==================== -->
+    
+    <!-- 如果启用压缩传输，需要在机载计算机上运行 republish 节点 -->
+    <group if="$(arg compressed)">
+        <node name="image_republish_color" pkg="image_transport" type="republish" 
+              args="compressed in:=/camera/color/image_raw raw out:=/camera/color/image_raw_decompressed">
+            <remap from="/camera/color/image_raw" to="/camera/color/image_raw/compressed" />
+        </node>
+        
+        <node name="image_republish_depth" pkg="image_transport" type="republish" 
+              args="compressedDepth in:=/camera/depth/image_raw raw out:=/camera/depth/image_raw_decompressed">
+            <remap from="/camera/depth/image_raw" to="/camera/depth/image_raw/compressedDepth" />
+        </node>
+    </group>
+    
+    
+    <!-- ==================== Vision 节点 ==================== -->
+    
+    <node pkg="agent" type="vision.py" name="vision_node" output="screen">
+        <!-- YOLO 参数 -->
+        <param name="use_yolo" value="$(arg use_yolo)" />
+        <param name="yolo_model_path" value="$(arg yolo_model_path)" />
+        <param name="detection_classes" value="$(arg detection_classes)" />
+        
+        <!-- VLM 参数 -->
+        <param name="use_vlm" value="$(arg use_vlm)" />
+        <param name="vlm_model" value="$(arg vlm_model)" />
+        <param name="vlm_api_key" value="$(arg vlm_api_key)" />
+        <param name="vlm_api_base" value="$(arg vlm_api_base)" />
+        
+        <!-- 设备参数 -->
+        <param name="device" value="$(arg device)" />
+        
+        <!-- 如果使用压缩传输，重映射话题 -->
+        <remap if="$(arg compressed)" from="/camera/color/image_raw" to="/camera/color/image_raw_decompressed" />
+        <remap if="$(arg compressed)" from="/camera/depth/image_raw" to="/camera/depth/image_raw_decompressed" />
+    </node>
+    
+    
+    <!-- ==================== 可视化工具（可选） ==================== -->
+    
+    <!-- RViz 可视化 -->
+    <arg name="rviz" default="false" 
+         doc="是否启动RViz可视化" />
+    
+    <node if="$(arg rviz)" pkg="rviz" type="rviz" name="vision_rviz" 
+          args="-d $(find agent)/cfg/vision.rviz" />
+    
+    
+    <!-- ==================== 监控工具（可选） ==================== -->
+    
+    <!-- 图像话题监控 -->
+    <arg name="monitor" default="false" 
+         doc="是否启动话题监控" />
+    
+    <node if="$(arg monitor)" pkg="rostopic" type="rostopic" name="image_monitor" 
+          args="hz /camera/color/image_raw" output="screen" />
+    
+    
+    <!-- ==================== 日志配置 ==================== -->
+    
+    <env name="ROSCONSOLE_FORMAT" value="[${severity}] [${time}] [${node}]: ${message}" />
+    
+</launch>

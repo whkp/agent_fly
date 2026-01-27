@@ -1,0 +1,5 @@
+utils/rviz_plugins
+/home/namy/Documents/agent_real/devel/.private/rviz_plugins/share/rviz_plugins/cmake/rviz_pluginsConfig-version.cmake /home/namy/Documents/agent_real/devel/share/rviz_plugins/cmake/rviz_pluginsConfig-version.cmake
+/home/namy/Documents/agent_real/devel/.private/rviz_plugins/share/rviz_plugins/cmake/rviz_pluginsConfig.cmake /home/namy/Documents/agent_real/devel/share/rviz_plugins/cmake/rviz_pluginsConfig.cmake
+/home/namy/Documents/agent_real/devel/.private/rviz_plugins/lib/librviz_plugins.so /home/namy/Documents/agent_real/devel/lib/librviz_plugins.so
+/home/namy/Documents/agent_real/devel/.private/rviz_plugins/lib/pkgconfig/rviz_plugins.pc /home/namy/Documents/agent_real/devel/lib/pkgconfig/rviz_plugins.pc

@@ -1,0 +1,477 @@
+# Agent 任务示例
+
+## 示例 1: 基础起飞
+**当前状态**: 坐标(0, 0, 0) | Yaw: 0° | 状态: IDLE
+**用户指令**: 起飞到2米高
+**输出**:
+```json
+{
+  "thought": "无人机在地面，需要起飞到2米高度",
+  "action_name": "takeoff",
+  "action_params": {"height": 2.0},
+  "final_message": null
+}
+```
+
+---
+
+## 示例 2: 空间推理 - 向前飞
+**当前状态**: 坐标(5, 10, 2) | Yaw: 0° | 状态: HOVER
+**用户指令**: 向前飞5米
+**输出**:
+```json
+{
+  "thought": "当前位置(5, 10, 2)，yaw=0°表示朝向x轴正方向，向前飞5米即x+5，目标位置(10, 10, 2)",
+  "action_name": "set_goal",
+  "action_params": {"x": 10.0, "y": 10.0, "z": 2.0, "yaw": 0.0},
+  "final_message": null
+}
+```
+
+---
+
+## 示例 3: 空间推理 - 相对移动
+**当前状态**: 坐标(0, 0, 1.5) | Yaw: 90° | 状态: HOVER
+**用户指令**: 向左移动3米
+**输出**:
+```json
+{
+  "thought": "当前yaw=90°，使用 move_relative 工具更简单，dy=-3表示向左",
+  "action_name": "move_relative",
+  "action_params": {"dx": 0, "dy": -3, "dz": 0},
+  "final_message": null
+}
+```
+
+---
+
+## 示例 4: 错误处理 - 高度超限
+**当前状态**: 坐标(0, 0, 0) | Yaw: 0° | 状态: IDLE
+**用户指令**: 起飞到30米高
+**上次结果**: Error: 动作被安全层拒绝。原因: 安全拦截: 目标高度 30.0m 高于最大安全高度 15.0m
+**输出**:
+```json
+{
+  "thought": "上次起飞失败，因为30米超过最大安全高度15米。调整为安全高度10米",
+  "action_name": "takeoff",
+  "action_params": {"height": 10.0},
+  "final_message": null
+}
+```
+
+---
+
+## 示例 5: 任务完成
+**当前状态**: 坐标(10, 20, 2) | Yaw: 0° | 状态: HOVER
+**用户指令**: 飞到(10, 20, 2)
+**上次结果**: 已设置目标点 (10.0, 20.0, 2.0)，px4ctrl 开始跟踪
+**输出**:
+```json
+{
+  "thought": "已经到达目标位置(10, 20, 2)，任务完成",
+  "action_name": "Final",
+  "action_params": {},
+  "final_message": "已到达目标位置 (10, 20, 2)"
+}
+```
+
+---
+
+## 示例 6: 复杂任务 - 多步骤
+**当前状态**: 坐标(0, 0, 0) | Yaw: 0° | 状态: IDLE
+**用户指令**: 起飞后飞到(5, 5, 3)
+**输出**:
+```json
+{
+  "thought": "无人机在地面，需要先起飞到默认高度1.5米，然后再飞到目标位置",
+  "action_name": "takeoff",
+  "action_params": {"height": 1.5},
+  "final_message": null
+}
+```
+**下一轮**:
+```json
+{
+  "thought": "起飞成功，现在飞到目标位置(5, 5, 3)",
+  "action_name": "set_goal",
+  "action_params": {"x": 5.0, "y": 5.0, "z": 3.0, "yaw": 0.0},
+  "final_message": null
+}
+```
+
+---
+
+## 示例 7: 查询状态
+**当前状态**: 坐标(3.2, 7.8, 2.5) | Yaw: 45° | 状态: HOVER
+**用户指令**: 我现在在哪里？
+**输出**:
+```json
+{
+  "thought": "用户询问当前位置，使用 get_current_position 工具获取详细信息",
+  "action_name": "get_current_position",
+  "action_params": {},
+  "final_message": null
+}
+```
+
+---
+
+## 示例 8: 降落
+**当前状态**: 坐标(10, 10, 2) | Yaw: 0° | 状态: HOVER
+**用户指令**: 降落
+**输出**:
+```json
+{
+  "thought": "无人机在空中，执行降落操作",
+  "action_name": "land",
+  "action_params": {},
+  "final_message": null
+}
+```
+
+---
+
+## 示例 9: 模糊指令 - 请求澄清
+**当前状态**: 坐标(0, 0, 1.5) | Yaw: 0° | 状态: HOVER
+**用户指令**: 飞过去
+**输出**:
+```json
+{
+  "thought": "指令不明确，不知道要飞到哪里，需要用户提供更多信息",
+  "action_name": "Final",
+  "action_params": {},
+  "final_message": "请告诉我具体要飞到哪里？可以提供坐标(x, y, z)或相对方向（如'向前5米'）"
+}
+```
+
+---
+
+## 示例 10: 安全拒绝
+**当前状态**: 坐标(0, 0, 1.5) | Yaw: 0° | 状态: HOVER
+**用户指令**: 飞到100米外
+**输出**:
+```json
+{
+  "thought": "单次移动100米距离过大，可能不安全，建议分步执行",
+  "action_name": "Final",
+  "action_params": {},
+  "final_message": "单次移动100米距离过大，为了安全，建议分多次执行。例如：先飞到(20, 0, 1.5)，再继续前进"
+}
+```
+
+---
+
+## 示例 11: 连续移动
+**当前状态**: 坐标(0, 0, 2) | Yaw: 0° | 状态: HOVER
+**用户指令**: 画一个正方形
+**输出**:
+```json
+{
+  "thought": "画正方形需要4个点，先飞到第一个点(5, 0, 2)",
+  "action_name": "set_goal",
+  "action_params": {"x": 5.0, "y": 0.0, "z": 2.0, "yaw": 0.0},
+  "final_message": null
+}
+```
+**后续轮次**: 依次飞到 (5, 5, 2) → (0, 5, 2) → (0, 0, 2)
+
+---
+
+## 示例 12: 错误恢复 - 工具名错误
+**当前状态**: 坐标(0, 0, 1.5) | Yaw: 0° | 状态: HOVER
+**用户指令**: 飞到(10, 10, 3)
+**上次结果**: Error: 找不到名为 'fly_to' 的工具，请检查工具列表
+**输出**:
+```json
+{
+  "thought": "上次使用了错误的工具名 'fly_to'，正确的工具名是 'set_goal'",
+  "action_name": "set_goal",
+  "action_params": {"x": 10.0, "y": 10.0, "z": 3.0, "yaw": 0.0},
+  "final_message": null
+}
+```
+
+---
+
+## 示例 13: 空间推理 - 复杂坐标计算
+**当前状态**: 坐标(5, 10, 2) | Yaw: 45° | 状态: HOVER
+**用户指令**: 向右飞3米，然后上升1米
+**输出**:
+```json
+{
+  "thought": "当前yaw=45°，但 move_relative 不考虑朝向，dy=-3表示向右（Y轴负方向），dz=1表示上升",
+  "action_name": "move_relative",
+  "action_params": {"dx": 0, "dy": -3, "dz": 1},
+  "final_message": null
+}
+```
+
+---
+
+## 示例 14: 错误处理 - 连续失败
+**当前状态**: 坐标(0, 0, 1.5) | Yaw: 0° | 状态: HOVER
+**用户指令**: 飞到(100, 100, 2)
+**上次结果**: Error: 动作被安全层拒绝。原因: 安全拦截: 单次指令移动距离 141.4m 过大，请分步执行
+**第2次尝试**: set_goal({'x': 50, 'y': 50, 'z': 2})
+**第2次结果**: Error: 动作被安全层拒绝。原因: 安全拦截: 单次指令移动距离 70.7m 过大，请分步执行
+**第3次尝试**: set_goal({'x': 20, 'y': 20, 'z': 2})
+**第3次结果**: 已设置目标点 (20.0, 20.0, 2.0)
+**输出**:
+```json
+{
+  "thought": "经过3次尝试，找到了安全的移动距离。现在先飞到(20, 20, 2)，后续可以继续向(100, 100, 2)前进",
+  "action_name": "Final",
+  "action_params": {},
+  "final_message": "正在飞往中间点(20, 20, 2)。由于距离较远，需要分多次到达(100, 100, 2)，请稍后继续指令"
+}
+```
+
+---
+
+## 示例 15: 安全机制 - 距离限制
+**当前状态**: 坐标(0, 0, 2) | Yaw: 0° | 状态: HOVER
+**用户指令**: 飞到(25, 0, 2)
+**输出**:
+```json
+{
+  "thought": "目标距离25米，超过单次安全移动距离20米。先飞到中间点(15, 0, 2)",
+  "action_name": "set_goal",
+  "action_params": {"x": 15.0, "y": 0.0, "z": 2.0, "yaw": 0.0},
+  "final_message": null
+}
+```
+**下一轮**:
+```json
+{
+  "thought": "已到达中间点，现在继续飞到最终目标(25, 0, 2)",
+  "action_name": "set_goal",
+  "action_params": {"x": 25.0, "y": 0.0, "z": 2.0, "yaw": 0.0},
+  "final_message": null
+}
+```
+
+
+---
+
+## 示例 16: 使用 wait 工具
+**当前状态**: 坐标(0, 0, 1.5) | Yaw: 0° | 状态: HOVER
+**用户指令**: 起飞后等待 3 秒再飞到(10, 10, 2)
+**输出**:
+```json
+{
+  "thought": "已经起飞，现在等待 3 秒让无人机稳定",
+  "action_name": "wait",
+  "action_params": {"seconds": 3.0},
+  "final_message": null
+}
+```
+**下一轮**:
+```json
+{
+  "thought": "等待完成，现在飞到目标位置(10, 10, 2)",
+  "action_name": "set_goal",
+  "action_params": {"x": 10.0, "y": 10.0, "z": 2.0, "yaw": 0.0},
+  "final_message": null
+}
+```
+
+---
+
+## 示例 17: 使用 hover 工具
+**当前状态**: 坐标(5, 5, 2) | Yaw: 0° | 状态: HOVER
+**用户指令**: 悬停 5 秒观察周围
+**输出**:
+```json
+{
+  "thought": "在当前位置悬停 5 秒，保持稳定观察环境",
+  "action_name": "hover",
+  "action_params": {"duration": 5.0},
+  "final_message": null
+}
+```
+
+---
+
+## 示例 18: 使用 rotate_yaw 工具
+**当前状态**: 坐标(0, 0, 2) | Yaw: 0° | 状态: HOVER
+**用户指令**: 向左转 90 度
+**输出**:
+```json
+{
+  "thought": "向左转即逆时针旋转 90 度",
+  "action_name": "rotate_yaw",
+  "action_params": {"angle": 90.0},
+  "final_message": null
+}
+```
+
+---
+
+## 示例 19: 使用视觉工具 - 描述场景
+**当前状态**: 坐标(5, 5, 2) | Yaw: 0° | 状态: HOVER
+**用户指令**: 看看周围有什么
+**输出**:
+```json
+{
+  "thought": "使用 VLM 描述当前场景",
+  "action_name": "describe_scene",
+  "action_params": {},
+  "final_message": null
+}
+```
+
+---
+
+## 示例 20: 使用视觉工具 - 检测物体
+**当前状态**: 坐标(5, 5, 2) | Yaw: 0° | 状态: HOVER
+**用户指令**: 检测一下有哪些物体
+**输出**:
+```json
+{
+  "thought": "使用 YOLO 检测场景中的物体",
+  "action_name": "get_detected_objects",
+  "action_params": {},
+  "final_message": null
+}
+```
+
+---
+
+## 示例 21: 检查物体是否可见
+**当前状态**: 坐标(5, 5, 2) | Yaw: 0° | 状态: HOVER
+**用户指令**: 能看到椅子吗？
+**输出**:
+```json
+{
+  "thought": "检查 chair 是否在视野中",
+  "action_name": "is_object_visible",
+  "action_params": {"object_name": "chair"},
+  "final_message": null
+}
+```
+
+---
+
+## 示例 22: LLM 组合工具 - 搜索物体
+**当前状态**: 坐标(5, 5, 2) | Yaw: 0° | 状态: HOVER
+**用户指令**: 找一下桌子在哪里
+**输出**:
+```json
+{
+  "thought": "先检查桌子是否在当前视野中",
+  "action_name": "is_object_visible",
+  "action_params": {"object_name": "desk"},
+  "final_message": null
+}
+```
+**下一轮**（假设不可见）:
+```json
+{
+  "thought": "桌子不在视野中，旋转 45 度继续搜索",
+  "action_name": "rotate_yaw",
+  "action_params": {"angle": 45},
+  "final_message": null
+}
+```
+**继续轮次**（重复检查和旋转，直到找到）:
+```json
+{
+  "thought": "再次检查桌子是否可见",
+  "action_name": "is_object_visible",
+  "action_params": {"object_name": "desk"},
+  "final_message": null
+}
+```
+**最后一轮**（找到了）:
+```json
+{
+  "thought": "找到桌子了，世界坐标: (8.5, 6.2, 0.8)",
+  "action_name": "Final",
+  "action_params": {},
+  "final_message": "找到桌子了，位置在 (8.5, 6.2, 0.8)"
+}
+```
+
+---
+
+## 示例 23: LLM 组合工具 - 飞向物体
+**当前状态**: 坐标(5, 5, 2) | Yaw: 0° | 状态: HOVER
+**用户指令**: 飞到椅子那里
+**输出**:
+```json
+{
+  "thought": "先检查椅子是否在视野中",
+  "action_name": "is_object_visible",
+  "action_params": {"object_name": "chair"},
+  "final_message": null
+}
+```
+**下一轮**（假设可见）:
+```json
+{
+  "thought": "椅子在视野中，获取所有检测物体的详细信息",
+  "action_name": "get_detected_objects",
+  "action_params": {},
+  "final_message": null
+}
+```
+**下一轮**（获取到坐标）:
+```json
+{
+  "thought": "椅子在 (8.2, 6.1, 0.5)，飞到椅子位置",
+  "action_name": "set_goal",
+  "action_params": {"x": 8.2, "y": 6.1, "z": 0.5, "yaw": 0.0},
+  "final_message": null
+}
+```
+
+---
+
+## 示例 24: LLM 组合工具 - 搜索并飞向物体
+**当前状态**: 坐标(0, 0, 2) | Yaw: 0° | 状态: HOVER
+**用户指令**: 找到桌子并飞过去
+**输出**:
+```json
+{
+  "thought": "先检查桌子是否在视野中",
+  "action_name": "is_object_visible",
+  "action_params": {"object_name": "desk"},
+  "final_message": null
+}
+```
+**下一轮**（假设不可见）:
+```json
+{
+  "thought": "桌子不在视野中，旋转搜索",
+  "action_name": "rotate_yaw",
+  "action_params": {"angle": 45},
+  "final_message": null
+}
+```
+**继续轮次**（重复检查和旋转）:
+```json
+{
+  "thought": "再次检查桌子",
+  "action_name": "is_object_visible",
+  "action_params": {"object_name": "desk"},
+  "final_message": null
+}
+```
+**找到后**:
+```json
+{
+  "thought": "找到桌子了，获取详细位置信息",
+  "action_name": "get_detected_objects",
+  "action_params": {},
+  "final_message": null
+}
+```
+**最后**:
+```json
+{
+  "thought": "桌子在 (10.5, 8.3, 0.8)，飞过去",
+  "action_name": "set_goal",
+  "action_params": {"x": 10.5, "y": 8.3, "z": 0.8, "yaw": 0.0},
+  "final_message": null
+}
+```

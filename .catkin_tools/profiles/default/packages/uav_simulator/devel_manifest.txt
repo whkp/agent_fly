@@ -1,0 +1,6 @@
+uav_simulator
+/home/namy/Documents/agent_real/devel/.private/uav_simulator/share/uav_simulator/cmake/uav_simulatorConfig.cmake /home/namy/Documents/agent_real/devel/share/uav_simulator/cmake/uav_simulatorConfig.cmake
+/home/namy/Documents/agent_real/devel/.private/uav_simulator/share/uav_simulator/cmake/uav_simulatorConfig-version.cmake /home/namy/Documents/agent_real/devel/share/uav_simulator/cmake/uav_simulatorConfig-version.cmake
+/home/namy/Documents/agent_real/devel/.private/uav_simulator/lib/uav_simulator/quadcopterTFBroadcaster /home/namy/Documents/agent_real/devel/lib/uav_simulator/quadcopterTFBroadcaster
+/home/namy/Documents/agent_real/devel/.private/uav_simulator/lib/uav_simulator/keyboard_control /home/namy/Documents/agent_real/devel/lib/uav_simulator/keyboard_control
+/home/namy/Documents/agent_real/devel/.private/uav_simulator/lib/pkgconfig/uav_simulator.pc /home/namy/Documents/agent_real/devel/lib/pkgconfig/uav_simulator.pc

@@ -1,0 +1,56 @@
+<launch>
+    <!-- 
+    ============================================================================
+    机载计算机 Agent 启动文件
+    ============================================================================
+    
+    用途：
+        在机载计算机上运行 Agent 控制逻辑
+    
+    使用场景：
+        仿真环境：所有组件在一台电脑
+        真机部署：机载计算机运行 Agent，地面站运行 Web 控制台
+    
+    网络配置（真机部署）：
+        机载计算机作为 ROS Master (IP: 192.168.1.100):
+            export ROS_MASTER_URI=http://192.168.1.100:11311
+            export ROS_IP=192.168.1.100
+            
+        地面站连接到机载计算机 (IP: 192.168.1.200):
+            export ROS_MASTER_URI=http://192.168.1.100:11311
+            export ROS_IP=192.168.1.200
+    
+    完整启动流程：
+        
+        # 仿真环境
+        roslaunch agent agent_onboard.launch platform_type:=px4_sim
+        
+        # 真机环境（机载计算机）
+        roslaunch agent agent_onboard.launch platform_type:=px4_real
+        
+        # 地面站（Windows）
+        # 启动 Web 控制台
+        cd agent/web
+        python app_standalone.py
+    
+    ============================================================================
+    -->
+    
+    <!-- 平台类型：px4_sim（仿真）或 px4_real（真机） -->
+    <arg name="platform_type" default="px4_sim" />
+    
+    <!-- LLM 配置 -->
+    <arg name="llm_model" default="qwen3-max" />
+    <arg name="llm_temperature" default="0.1" />
+    
+    <!-- Agent 节点 -->
+    <node pkg="agent" type="agent.py" name="agent_node" output="screen">
+        <param name="platform_type" value="$(arg platform_type)" />
+        <param name="llm_model" value="$(arg llm_model)" />
+        <param name="llm_temperature" value="$(arg llm_temperature)" />
+    </node>
+    
+    <!-- 日志配置 -->
+    <env name="ROSCONSOLE_FORMAT" value="[${severity}] [${time}] [${node}]: ${message}" />
+    
+</launch>

@@ -1,0 +1,186 @@
+{
+  "tools": [
+    {
+      "name": "takeoff",
+      "activation": true,
+      "description": "起飞到指定高度。发布 TakeoffLand 消息给 px4ctrl，等待到达目标高度",
+      "parameters": {
+        "height": {
+          "type": "float",
+          "default": 1.5,
+          "range": [0.5, 20.0],
+          "unit": "m",
+          "description": "目标高度（米），范围 0.5-20m"
+        }
+      },
+      "example": "takeoff({'height': 2.0})",
+      "returns": "{'result': '起飞成功，当前高度 2.0m，状态: HOVER'}",
+      "notes": "起飞前会检查是否已在空中，如果已在空中则直接返回当前高度"
+    },
+    {
+      "name": "land",
+      "activation": true,
+      "description": "降落到地面。发布 TakeoffLand 消息给 px4ctrl，等待接近地面",
+      "parameters": {},
+      "example": "land()",
+      "returns": "{'result': '降落成功'}",
+      "notes": "降落过程会持续发布降落命令，直到高度低于 0.15m"
+    },
+    {
+      "name": "set_goal",
+      "activation": true,
+      "description": "设置目标点，px4ctrl 会持续跟踪该目标。用于飞到指定坐标",
+      "parameters": {
+        "x": {
+          "type": "float",
+          "unit": "m",
+          "description": "目标 X 坐标（米）"
+        },
+        "y": {
+          "type": "float",
+          "unit": "m",
+          "description": "目标 Y 坐标（米）"
+        },
+        "z": {
+          "type": "float",
+          "unit": "m",
+          "range": [0.5, 20.0],
+          "description": "目标 Z 坐标（高度，米），范围 0.5-20m"
+        },
+        "yaw": {
+          "type": "float",
+          "unit": "rad",
+          "default": 0.0,
+          "description": "目标偏航角（弧度），可选"
+        }
+      },
+      "example": "set_goal({'x': 10.0, 'y': 5.0, 'z': 2.0, 'yaw': 0.0})",
+      "returns": "{'result': '已设置目标点 (10.0, 5.0, 2.0)，px4ctrl 开始跟踪'}",
+      "notes": "需要先起飞到 HOVER 状态才能使用。px4ctrl 会自动规划路径并跟踪目标"
+    },
+    {
+      "name": "move_relative",
+      "activation": true,
+      "description": "相对当前位置移动。自动计算目标坐标并调用 set_goal",
+      "parameters": {
+        "dx": {
+          "type": "float",
+          "unit": "m",
+          "description": "X 方向移动距离（米），正值向前"
+        },
+        "dy": {
+          "type": "float",
+          "unit": "m",
+          "description": "Y 方向移动距离（米），正值向左"
+        },
+        "dz": {
+          "type": "float",
+          "unit": "m",
+          "description": "Z 方向移动距离（米），正值向上"
+        }
+      },
+      "example": "move_relative({'dx': 5.0, 'dy': 0, 'dz': 1.0})",
+      "returns": "{'result': '已设置目标点 (当前x+5, 当前y, 当前z+1)'}",
+      "notes": "相对移动基于当前位置，不考虑朝向。如需考虑朝向，请使用 set_goal"
+    },
+    {
+      "name": "get_current_position",
+      "activation": true,
+      "description": "获取当前位置和朝向信息",
+      "parameters": {},
+      "example": "get_current_position()",
+      "returns": "{'result': 'x=3.2, y=7.8, z=2.5m, yaw=45°'}",
+      "notes": "返回当前的 x, y, z 坐标和 yaw 角度"
+    },
+    {
+      "name": "get_flight_status",
+      "activation": true,
+      "description": "获取飞行状态（IDLE/TAKEOFF/HOVER/NAVIGATE/LAND）",
+      "parameters": {},
+      "example": "get_flight_status()",
+      "returns": "{'result': '状态: HOVER, 位置: (3.2, 7.8, 2.5)'}",
+      "notes": "状态说明: IDLE=地面, TAKEOFF=起飞中, HOVER=悬停, NAVIGATE=导航中, LAND=降落中"
+    },
+    {
+      "name": "wait",
+      "activation": true,
+      "description": "等待指定秒数。用于任务间隔控制、等待无人机稳定",
+      "parameters": {
+        "seconds": {
+          "type": "float",
+          "range": [0.1, 60.0],
+          "unit": "s",
+          "description": "等待时间（秒），范围 0.1-60s"
+        }
+      },
+      "example": "wait({'seconds': 3.0})",
+      "returns": "{'result': '等待 3.0 秒完成'}",
+      "notes": "常用于起飞后稳定、拍照前等待、任务间隔"
+    },
+    {
+      "name": "hover",
+      "activation": true,
+      "description": "在当前位置悬停指定时间。用于观察环境、拍照稳定",
+      "parameters": {
+        "duration": {
+          "type": "float",
+          "range": [1.0, 60.0],
+          "unit": "s",
+          "default": 5.0,
+          "description": "悬停时间（秒），范围 1-60s"
+        }
+      },
+      "example": "hover({'duration': 5.0})",
+      "returns": "{'result': '悬停 5.0 秒完成，位置: (3.2, 7.8, 2.5)'}",
+      "notes": "悬停期间会持续发布当前位置为目标，保持稳定"
+    },
+    {
+      "name": "rotate_yaw",
+      "activation": true,
+      "description": "旋转指定角度（相对当前朝向）。用于调整朝向、环视扫描",
+      "parameters": {
+        "angle": {
+          "type": "float",
+          "range": [-360.0, 360.0],
+          "unit": "deg",
+          "description": "旋转角度（度），正值逆时针，负值顺时针"
+        }
+      },
+      "example": "rotate_yaw({'angle': 90.0})",
+      "returns": "{'result': '旋转 90.0° 完成，当前朝向 90.0°'}",
+      "notes": "旋转是相对当前朝向的增量，不是绝对角度"
+    },
+    {
+      "name": "describe_scene",
+      "activation": true,
+      "description": "使用 VLM 描述当前场景。需要 vision_node 运行",
+      "parameters": {},
+      "example": "describe_scene()",
+      "returns": "{'result': '前方有一个桌子和两把椅子，左侧有一扇门'}",
+      "notes": "需要启动 vision_node 并配置 VLM API。超时时间 10 秒"
+    },
+    {
+      "name": "get_detected_objects",
+      "activation": true,
+      "description": "使用 YOLO 检测场景中的物体及其世界坐标。需要 vision_node 运行",
+      "parameters": {},
+      "example": "get_detected_objects()",
+      "returns": "{'result': '检测到 3 个物体: chair(位置: 5.2, 3.1, 0.5), desk(位置: 6.0, 3.0, 0.8), person(位置: 4.5, 2.8, 1.7)'}",
+      "notes": "需要启动 vision_node 并加载 YOLO 模型。返回物体名称和世界坐标"
+    },
+    {
+      "name": "is_object_visible",
+      "activation": true,
+      "description": "检查指定物体是否在视野中。需要 vision_node 运行",
+      "parameters": {
+        "object_name": {
+          "type": "string",
+          "description": "物体名称，如 'chair', 'person', 'desk'"
+        }
+      },
+      "example": "is_object_visible({'object_name': 'chair'})",
+      "returns": "{'result': '是，chair 在视野中，世界坐标: (5.2, 3.1, 0.5)，距离: 3.5m'}",
+      "notes": "基于 YOLO 检测结果判断。支持模糊匹配物体名称"
+    }
+  ]
+}

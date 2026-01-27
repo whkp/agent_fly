@@ -1,0 +1,10 @@
+<launch>
+    <!-- 平台类型：px4_sim（仿真）或 px4_real（真机） -->
+    <arg name="platform_type" default="px4_sim" />
+    
+    <!-- Agent 节点 -->
+    <node pkg="agent" type="agent.py" name="agent_node" output="screen">
+        <param name="platform_type" value="$(arg platform_type)" />
+    </node>
+    
+</launch>
